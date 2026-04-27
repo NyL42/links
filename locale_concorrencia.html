@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análise de Concorrência — Locale</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap">
+<style>
+  :root {
+    --ink:       #0f0f0e;
+    --ink-light: #3a3935;
+    --ink-faint: #8a8880;
+    --paper:     #f5f3ef;
+    --rule:      #d8d4cc;
+    --accent:    #1a1a18;
+    --gold:      #b8975a;
+    --green:     #3a6b4a;
+    --red:       #8b3a3a;
+
+    --c-locale:   #1a1a18;
+    --c-ha:       #2e5fa3;
+    --c-spot:     #c85c2e;
+    --c-ideal:    #4a9b6f;
+    --c-reloc:    #7a4ca0;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 40px; }
+
+  header { border-bottom: 1px solid var(--rule); padding: 60px 0 48px; }
+  .header-meta { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 28px; }
+  .header-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(40px, 5vw, 62px); font-weight: 300; line-height: 1.05; letter-spacing: -0.01em; color: var(--ink); margin-bottom: 20px; }
+  .header-title em { font-style: italic; color: var(--ink-light); }
+  .header-sub { font-size: 14px; color: var(--ink-faint); max-width: 560px; line-height: 1.7; }
+
+  section { padding: 60px 0; border-bottom: 1px solid var(--rule); }
+  section:last-child { border-bottom: none; }
+
+  .sec-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); margin-bottom: 16px; display: block; }
+  .sec-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(26px, 3.5vw, 38px); font-weight: 400; line-height: 1.1; margin-bottom: 36px; }
+
+  .method-note { background: var(--ink); color: var(--paper); padding: 28px 32px; border-radius: 2px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 48px; }
+  .method-item .label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
+  .method-item .value { font-size: 13px; color: rgba(245,243,239,0.8); line-height: 1.5; }
+
+  .competitors-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin-bottom: 12px; }
+  .comp-card { background: var(--paper); padding: 24px 20px; position: relative; overflow: hidden; }
+  .comp-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .comp-card.locale::before  { background: var(--c-locale); }
+  .comp-card.ha::before      { background: var(--c-ha); }
+  .comp-card.spot::before    { background: var(--c-spot); }
+  .comp-card.ideal::before   { background: var(--c-ideal); }
+  .comp-card.reloc::before   { background: var(--c-reloc); }
+
+  .comp-tag { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 8px; border-radius: 2px; display: inline-block; margin-bottom: 12px; }
+  .locale .comp-tag  { background: var(--c-locale); color: #fff; }
+  .ha .comp-tag      { background: rgba(46,95,163,0.12); color: var(--c-ha); }
+  .spot .comp-tag    { background: rgba(200,92,46,0.12); color: var(--c-spot); }
+  .ideal .comp-tag   { background: rgba(74,155,111,0.12); color: var(--c-ideal); }
+  .reloc .comp-tag   { background: rgba(122,76,160,0.12); color: var(--c-reloc); }
+
+  .comp-name { font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 500; margin-bottom: 8px; line-height: 1.2; }
+  .comp-desc { font-size: 12px; color: var(--ink-faint); line-height: 1.55; margin-bottom: 12px; }
+  .comp-type { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--ink-faint); border-top: 1px solid var(--rule); padding-top: 10px; letter-spacing: 0.05em; }
+
+  /* ── MATRIX ── */
+  .matrix-wrap { overflow-x: auto; margin: 0 -8px; padding: 0 8px; }
+  .matrix-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 820px; }
+
+  /* colgroup drives column widths — this is what keeps Nota/Pond. aligned */
+  .matrix-table col.c-fcs  { width: 190px; }
+  .matrix-table col.c-wt   { width: 44px; }
+  .matrix-table col.c-note { width: 46px; }
+  .matrix-table col.c-pond { width: 46px; }
+
+  .matrix-table thead tr:first-child th {
+    padding: 14px 12px 6px;
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--rule);
+  }
+  .matrix-table thead tr:first-child th.fcs-head { text-align: left; color: var(--ink-faint); }
+  .matrix-table thead tr:first-child th.locale-head { color: var(--c-locale); }
+  .matrix-table thead tr:first-child th.ha-head     { color: var(--c-ha); }
+  .matrix-table thead tr:first-child th.spot-head   { color: var(--c-spot); }
+  .matrix-table thead tr:first-child th.ideal-head  { color: var(--c-ideal); }
+  .matrix-table thead tr:first-child th.reloc-head  { color: var(--c-reloc); }
+
+  /* subhead: only 10 cells (Nota+Pond x5) — no phantom cell */
+  .matrix-table thead tr.subhead th {
+    padding: 4px 8px 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    text-align: center;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .cat-row td { background: var(--ink); color: var(--paper); font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; padding: 8px 12px; }
+
+  .matrix-table tbody tr.data-row:nth-child(even) td { background: rgba(0,0,0,0.025); }
+  .matrix-table tbody tr.data-row td { padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+  .matrix-table tbody tr.data-row td.fcs-name { font-size: 13px; color: var(--ink); max-width: 200px; }
+  .matrix-table tbody tr.data-row td.weight { text-align: center; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink-faint); }
+  .matrix-table tbody tr.data-row td.score,
+  .matrix-table tbody tr.data-row td.pond { text-align: center; font-family: 'DM Mono', monospace; font-size: 12px; }
+  .matrix-table tbody tr.data-row td.pond { font-weight: 500; }
+
+  .score-dot { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; }
+  .score-5 { background: var(--ink); color: var(--paper); }
+  .score-4 { background: rgba(15,15,14,0.15); color: var(--ink); }
+  .score-3 { background: rgba(15,15,14,0.08); color: var(--ink-light); }
+  .score-2 { background: rgba(139,58,58,0.1); color: var(--red); }
+  .score-1 { background: rgba(139,58,58,0.06); color: rgba(139,58,58,0.6); }
+
+  .total-row td { padding: 14px 12px; border-top: 2px solid var(--ink); font-weight: 500; }
+  .total-row .fcs-name { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .total-row .pond { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500; text-align: center; }
+
+  .bars-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .bar-item { display: flex; flex-direction: column; gap: 6px; }
+  .bar-header { display: flex; align-items: baseline; justify-content: space-between; }
+  .bar-name { font-size: 13px; color: var(--ink); }
+  .bar-score { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; }
+  .bar-track { height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .bar-locale  .bar-fill { background: var(--c-locale); }
+  .bar-ha      .bar-fill { background: var(--c-ha); }
+  .bar-spot    .bar-fill { background: var(--c-spot); }
+  .bar-ideal   .bar-fill { background: var(--c-ideal); }
+  .bar-reloc   .bar-fill { background: var(--c-reloc); }
+
+  .insights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .insight-card { border: 1px solid var(--rule); padding: 28px; border-radius: 2px; position: relative; }
+  .insight-card.highlight { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+  .insight-num { font-family: 'Cormorant Garamond', serif; font-size: 48px; font-weight: 300; line-height: 1; color: var(--rule); position: absolute; top: 20px; right: 24px; }
+  .insight-card.highlight .insight-num { color: rgba(255,255,255,0.08); }
+  .insight-tag { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); margin-bottom: 12px; display: block; }
+  .insight-card.highlight .insight-tag { color: rgba(184,151,90,0.8); }
+  .insight-title { font-size: 15px; font-weight: 500; margin-bottom: 10px; line-height: 1.3; }
+  .insight-card.highlight .insight-title { color: var(--paper); }
+  .insight-text { font-size: 13px; color: var(--ink-faint); line-height: 1.65; }
+  .insight-card.highlight .insight-text { color: rgba(245,243,239,0.65); }
+
+  .gap-table { width: 100%; border-collapse: collapse; }
+  .gap-table th { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); padding: 10px 16px; text-align: left; border-bottom: 2px solid var(--ink); }
+  .gap-table td { padding: 12px 16px; border-bottom: 1px solid var(--rule); font-size: 13px; line-height: 1.5; vertical-align: top; }
+  .gap-table tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
+  .gap-status { display: inline-block; font-family: 'DM Mono', monospace; font-size: 10px; padding: 3px 10px; border-radius: 2px; letter-spacing: 0.05em; white-space: nowrap; }
+  .gap-open   { background: rgba(58,107,74,0.12); color: var(--green); }
+  .gap-risk   { background: rgba(139,58,58,0.10); color: var(--red); }
+  .gap-parity { background: rgba(0,0,0,0.07); color: var(--ink-faint); }
+
+  footer { padding: 40px 0; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--rule); }
+  footer .brand { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 400; letter-spacing: 0.04em; }
+  footer .note { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--ink-faint); letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .disclaimer { background: rgba(0,0,0,0.04); border-left: 2px solid var(--gold); padding: 14px 20px; margin-bottom: 40px; font-size: 12px; color: var(--ink-faint); line-height: 1.6; }
+  .disclaimer strong { color: var(--ink); font-weight: 500; }
+
+  @media (max-width: 700px) {
+    .wrap { padding: 0 20px; }
+    .competitors-grid { grid-template-columns: 1fr 1fr; }
+    .method-note { grid-template-columns: 1fr; }
+    .bars-grid { grid-template-columns: 1fr; }
+    .insights-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <p class="header-meta">Locale · Análise de Concorrência · Abril 2026</p>
+    <h1 class="header-title">Análise<br><em>da Concorrência</em></h1>
+    <p class="header-sub">
+      Mapeamento competitivo do mercado de busca imobiliária cross-border, 
+      com avaliação dos fatores críticos de sucesso relevantes para uma 
+      plataforma de compatibilização por estilo de vida.
+    </p>
+  </header>
+
+  <section>
+    <span class="sec-label">Metodologia</span>
+    <h2 class="sec-title">Como foi estruturada</h2>
+
+    <div class="method-note">
+      <div class="method-item">
+        <div class="label">Método de pesquisa</div>
+        <div class="value">Desk research · Cliente misterioso digital (web, mobile, onboarding)</div>
+      </div>
+      <div class="method-item">
+        <div class="label">Concorrentes analisados</div>
+        <div class="value">4 concorrentes (2 diretos, 2 indiretos) + Locale como referência</div>
+      </div>
+      <div class="method-item">
+        <div class="label">Escala de pontuação</div>
+        <div class="value">1 a 5 por FCS · Ponderado pelo peso estratégico · Score máximo: 200</div>
+      </div>
+    </div>
+
+    <div class="disclaimer">
+      <strong>Nota sobre a Locale:</strong> por se tratar de um conceito pré-lançamento, as notas refletem 
+      a proposta de valor planejada, não uma operação validada. Fatores como 
+      presença digital e cobertura geográfica foram pontuados com base no estado atual, 
+      não na visão futura — preservando a leitura honesta do momento real.
+    </div>
+
+    <div class="competitors-grid">
+      <div class="comp-card locale">
+        <span class="comp-tag">Referência</span>
+        <div class="comp-name">Locale</div>
+        <div class="comp-desc">Camada de busca acima dos portais. Compatibilização por bairro e estilo de vida. Perfil persistente cross-border.</div>
+        <div class="comp-type">Conceito · 2026</div>
+      </div>
+      <div class="comp-card ha">
+        <span class="comp-tag">Concorrente Direto</span>
+        <div class="comp-name">Housing Anywhere</div>
+        <div class="comp-desc">Plataforma de aluguel mid-term para estudantes e profissionais internacionais. 400+ cidades, foco europeu.</div>
+        <div class="comp-type">Operacional · Est. 2009</div>
+      </div>
+      <div class="comp-card spot">
+        <span class="comp-tag">Concorrente Direto</span>
+        <div class="comp-name">Spotahome</div>
+        <div class="comp-desc">Aluguel mid-term com tours em vídeo. Voltado a expatriados e estudantes em ~30 cidades europeias.</div>
+        <div class="comp-type">Operacional · Est. 2014</div>
+      </div>
+      <div class="comp-card ideal">
+        <span class="comp-tag">Concorrente Indireto</span>
+        <div class="comp-name">Idealista</div>
+        <div class="comp-desc">Portal dominante em Espanha, Itália e Portugal. Modelo de anúncios por listagem. Nacional por natureza.</div>
+        <div class="comp-type">Operacional · Est. 2000</div>
+      </div>
+      <div class="comp-card reloc">
+        <span class="comp-tag">Concorrente Indireto</span>
+        <div class="comp-name">Relocate.me</div>
+        <div class="comp-desc">Plataforma de relocalização orientada a emprego tech. Cobre contexto de visto e custo de vida por cidade.</div>
+        <div class="comp-type">Operacional · Est. 2018</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <span class="sec-label">Matriz de Competitividade</span>
+    <h2 class="sec-title">Fatores Críticos de Sucesso</h2>
+
+    <div class="matrix-wrap">
+      <table class="matrix-table">
+        <!--
+          12 columns total:
+          col 1  = FCS name
+          col 2  = Peso
+          cols 3-4   = Locale  (Nota, Pond.)
+          cols 5-6   = HA      (Nota, Pond.)
+          cols 7-8   = Spot    (Nota, Pond.)
+          cols 9-10  = Ideal   (Nota, Pond.)
+          cols 11-12 = Reloc   (Nota, Pond.)
+        -->
+        <colgroup>
+          <col class="c-fcs">
+          <col class="c-wt">
+          <col class="c-note"><col class="c-pond">
+          <col class="c-note"><col class="c-pond">
+          <col class="c-note"><col class="c-pond">
+          <col class="c-note"><col class="c-pond">
+          <col class="c-note"><col class="c-pond">
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="fcs-head" rowspan="2">FCS</th>
+            <th class="fcs-head" rowspan="2">Peso</th>
+            <th class="locale-head" colspan="2">Locale</th>
+            <th class="ha-head"     colspan="2">HousingAnywhere</th>
+            <th class="spot-head"   colspan="2">Spotahome</th>
+            <th class="ideal-head"  colspan="2">Idealista</th>
+            <th class="reloc-head"  colspan="2">Relocate.me</th>
+          </tr>
+          <!-- FIX: was 11 cells (phantom empty th at start); now correctly 10 -->
+          <tr class="subhead">
+            <th>Nota</th><th>Pond.</th>
+            <th>Nota</th><th>Pond.</th>
+            <th>Nota</th><th>Pond.</th>
+            <th>Nota</th><th>Pond.</th>
+            <th>Nota</th><th>Pond.</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <tr class="cat-row"><td colspan="12">Produto / Serviço</td></tr>
+
+          <tr class="data-row">
+            <td class="fcs-name">Cobertura geográfica</td>
+            <td class="weight">5</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">15</td>
+            <td class="score"><span class="score-dot score-4">4</span></td><td class="pond">20</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">15</td>
+            <td class="score"><span class="score-dot score-2">2</span></td><td class="pond">10</td>
+            <td class="score"><span class="score-dot score-4">4</span></td><td class="pond">20</td>
+          </tr>
+
+          <tr class="data-row">
+            <td class="fcs-name">Qualidade do matching / busca</td>
+            <td class="weight">5</td>
+            <td class="score"><span class="score-dot score-5">5</span></td><td class="pond">25</td>
+            <td class="score"><span class="score-dot score-2">2</span></td><td class="pond">10</td>
+            <td class="score"><span class="score-dot score-2">2</span></td><td class="pond">10</td>
+            <td class="score"><span class="score-dot score-2">2</span></td><td class="pond">10</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">15</td>
+          </tr>
+
+          <tr class="data-row">
+            <td class="fcs-name">Experiência cross-border genuína</td>
+            <td class="weight">5</td>
+            <td class="score"><span class="score-dot score-5">5</span></td><td class="pond">25</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">15</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">15</td>
+            <td class="score"><span class="score-dot score-1">1</span></td><td class="pond">5</td>
+            <td class="score"><span class="score-dot score-4">4</span></td><td class="pond">20</td>
+          </tr>
+
+          <tr class="data-row">
+            <td class="fcs-name">Persistência de perfil do usuário</td>
+            <td class="weight">4</td>
+            <td class="score"><span class="score-dot score-5">5</span></td><td class="pond">20</td>
+            <td class="score"><span class="score-dot score-2">2</span></td><td class="pond">8</td>
+            <td class="score"><span class="score-dot score-2">2</span></td><td class="pond">8</td>
+            <td class="score"><span class="score-dot score-2">2</span></td><td class="pond">8</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">12</td>
+          </tr>
+
+          <tr class="cat-row"><td colspan="12">Preço</td></tr>
+
+          <tr class="data-row">
+            <td class="fcs-name">Custo para o usuário final</td>
+            <td class="weight">4</td>
+            <td class="score"><span class="score-dot score-5">5</span></td><td class="pond">20</td>
+            <td class="score"><span class="score-dot score-2">2</span></td><td class="pond">8</td>
+            <td class="score"><span class="score-dot score-2">2</span></td><td class="pond">8</td>
+            <td class="score"><span class="score-dot score-4">4</span></td><td class="pond">16</td>
+            <td class="score"><span class="score-dot score-4">4</span></td><td class="pond">16</td>
+          </tr>
+
+          <tr class="data-row">
+            <td class="fcs-name">Diversificação do modelo de receita</td>
+            <td class="weight">3</td>
+            <td class="score"><span class="score-dot score-4">4</span></td><td class="pond">12</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">9</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">9</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">9</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">9</td>
+          </tr>
+
+          <tr class="cat-row"><td colspan="12">Ponto / Distribuição</td></tr>
+
+          <tr class="data-row">
+            <td class="fcs-name">Presença digital e reconhecimento</td>
+            <td class="weight">4</td>
+            <td class="score"><span class="score-dot score-1">1</span></td><td class="pond">4</td>
+            <td class="score"><span class="score-dot score-4">4</span></td><td class="pond">16</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">12</td>
+            <td class="score"><span class="score-dot score-5">5</span></td><td class="pond">20</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">12</td>
+          </tr>
+
+          <tr class="data-row">
+            <td class="fcs-name">Acessibilidade multilíngue da plataforma</td>
+            <td class="weight">3</td>
+            <td class="score"><span class="score-dot score-4">4</span></td><td class="pond">12</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">9</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">9</td>
+            <td class="score"><span class="score-dot score-2">2</span></td><td class="pond">6</td>
+            <td class="score"><span class="score-dot score-2">2</span></td><td class="pond">6</td>
+          </tr>
+
+          <tr class="cat-row"><td colspan="12">Promoção / Diferenciais</td></tr>
+
+          <tr class="data-row">
+            <td class="fcs-name">Rede de profissionais parceiros</td>
+            <td class="weight">4</td>
+            <td class="score"><span class="score-dot score-4">4</span></td><td class="pond">16</td>
+            <td class="score"><span class="score-dot score-1">1</span></td><td class="pond">4</td>
+            <td class="score"><span class="score-dot score-1">1</span></td><td class="pond">4</td>
+            <td class="score"><span class="score-dot score-2">2</span></td><td class="pond">8</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">12</td>
+          </tr>
+
+          <tr class="data-row">
+            <td class="fcs-name">Filtro regulatório (vistos / passaporte)</td>
+            <td class="weight">3</td>
+            <td class="score"><span class="score-dot score-5">5</span></td><td class="pond">15</td>
+            <td class="score"><span class="score-dot score-1">1</span></td><td class="pond">3</td>
+            <td class="score"><span class="score-dot score-1">1</span></td><td class="pond">3</td>
+            <td class="score"><span class="score-dot score-1">1</span></td><td class="pond">3</td>
+            <td class="score"><span class="score-dot score-3">3</span></td><td class="pond">9</td>
+          </tr>
+
+          <tr class="total-row">
+            <td class="fcs-name" colspan="2">Total</td>
+            <td colspan="2" class="pond" style="font-size:18px;">164</td>
+            <td colspan="2" class="pond" style="font-size:18px;">102</td>
+            <td colspan="2" class="pond" style="font-size:18px;">93</td>
+            <td colspan="2" class="pond" style="font-size:18px;">95</td>
+            <td colspan="2" class="pond" style="font-size:18px;">131</td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <span class="sec-label">Visão Radial</span>
+    <h2 class="sec-title">Perfil competitivo por dimensão</h2>
+    <div style="display:flex; gap:48px; align-items:center; flex-wrap:wrap;">
+      <canvas id="radarChart" width="520" height="520" style="flex-shrink:0; max-width:100%;"></canvas>
+      <div id="radarLegend" style="display:flex; flex-direction:column; gap:14px; flex:1; min-width:180px;"></div>
+    </div>
+  </section>
+
+  <section>
+    <span class="sec-label">Pontuação Total · Score máximo: 200</span>
+    <h2 class="sec-title">Resumo comparativo</h2>
+    <div class="bars-grid">
+      <div class="bar-item bar-locale">
+        <div class="bar-header">
+          <span class="bar-name"><strong>Locale</strong> <span style="font-size:11px;color:var(--ink-faint);font-style:italic;">(planejado)</span></span>
+          <span class="bar-score" style="color:var(--c-locale);">164 / 200</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:82%;"></div></div>
+      </div>
+      <div class="bar-item bar-reloc">
+        <div class="bar-header">
+          <span class="bar-name">Relocate.me</span>
+          <span class="bar-score" style="color:var(--c-reloc);">131 / 200</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:65.5%;"></div></div>
+      </div>
+      <div class="bar-item bar-ha">
+        <div class="bar-header">
+          <span class="bar-name">HousingAnywhere</span>
+          <span class="bar-score" style="color:var(--c-ha);">102 / 200</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:51%;"></div></div>
+      </div>
+      <div class="bar-item bar-ideal">
+        <div class="bar-header">
+          <span class="bar-name">Idealista</span>
+          <span class="bar-score" style="color:var(--c-ideal);">95 / 200</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:47.5%;"></div></div>
+      </div>
+      <div class="bar-item bar-spot">
+        <div class="bar-header">
+          <span class="bar-name">Spotahome</span>
+          <span class="bar-score" style="color:var(--c-spot);">93 / 200</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:46.5%;"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <span class="sec-label">Análise de Gaps</span>
+    <h2 class="sec-title">Onde o mercado deixa espaço</h2>
+    <table class="gap-table">
+      <thead>
+        <tr>
+          <th style="width:26%;">Fator</th>
+          <th style="width:14%;">Status</th>
+          <th>O que o mercado faz hoje</th>
+          <th>Oportunidade / Risco</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Matching por estilo de vida</strong></td>
+          <td><span class="gap-status gap-open">Gap aberto</span></td>
+          <td>Todos usam filtros de preço, tipo e localização. Nenhum cruza hábitos cotidianos com bairros.</td>
+          <td>Espaço claro para Locale. É o núcleo do produto e não tem equivalente real no mercado.</td>
+        </tr>
+        <tr>
+          <td><strong>Filtro regulatório (visto/passaporte)</strong></td>
+          <td><span class="gap-status gap-open">Gap aberto</span></td>
+          <td>Relocate.me traz alguma info de visto, mas vinculada a emprego. Os demais ignoram o tema.</td>
+          <td>Feature sem concorrente direto fora do contexto de emprego. Relevante para Erasmus e profissionais autônomos.</td>
+        </tr>
+        <tr>
+          <td><strong>Perfil persistente cross-border</strong></td>
+          <td><span class="gap-status gap-open">Gap aberto</span></td>
+          <td>Todas as plataformas recomeçam a busca a cada cidade ou sessão. Contexto do usuário não viaja com ele.</td>
+          <td>Diferencial estrutural. Gera lock-in real e dados proprietários que concorrentes não conseguem replicar rapidamente.</td>
+        </tr>
+        <tr>
+          <td><strong>Rede de profissionais integrada</strong></td>
+          <td><span class="gap-status gap-open">Gap aberto</span></td>
+          <td>HousingAnywhere e Spotahome não conectam advogados, contadores ou consultores financeiros. Idealista tem corretores, mas sem contexto.</td>
+          <td>Relocate.me faz algo parecido no contexto de emprego. Para moradia pura, o gap é real — especialmente para fluxo Erasmus.</td>
+        </tr>
+        <tr>
+          <td><strong>Presença digital e reconhecimento</strong></td>
+          <td><span class="gap-status gap-risk">Risco real</span></td>
+          <td>Idealista domina SEO nos mercados alvo. HousingAnywhere tem autoridade de domínio consolidada. Spotahome tem presença em reviews.</td>
+          <td>Locale entra sem marca. CAC tende a ser alto. Parcerias com universidades (Erasmus) e empregadores são o caminho mais eficiente de distribuição.</td>
+        </tr>
+        <tr>
+          <td><strong>Cobertura de listagens</strong></td>
+          <td><span class="gap-status gap-risk">Risco real</span></td>
+          <td>HousingAnywhere tem +400 cidades. Spotahome ~30. Idealista domina 3 países com volume real de anúncios.</td>
+          <td>Locale na Fase 1 depende de portais existentes (redirecionamento). O risco é frição se a integração não for fluida para o usuário.</td>
+        </tr>
+        <tr>
+          <td><strong>Custo para o usuário</strong></td>
+          <td><span class="gap-status gap-parity">Paridade parcial</span></td>
+          <td>Idealista e Relocate.me são gratuitos para quem busca. HousingAnywhere e Spotahome cobram taxas de reserva relevantes.</td>
+          <td>Locale propõe ser gratuito para o morador. É o mínimo esperado neste segmento — necessário, mas não diferenciante por si só.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <span class="sec-label">Leitura Estratégica</span>
+    <h2 class="sec-title">Quatro pontos que definem a posição</h2>
+    <div class="insights-grid">
+      <div class="insight-card highlight">
+        <span class="insight-num">01</span>
+        <span class="insight-tag">Vantagem central</span>
+        <div class="insight-title">O mercado é inteiramente orientado a listagens. Locale é orientada à pessoa.</div>
+        <div class="insight-text">
+          Nenhum concorrente começa a busca por quem o usuário é. Todos começam por onde ele quer morar 
+          ou quanto pode pagar. Esse é o gap estrutural que define a proposta da Locale — e ele é real.
+        </div>
+      </div>
+      <div class="insight-card">
+        <span class="insight-num">02</span>
+        <span class="insight-tag">Concorrente mais próximo</span>
+        <div class="insight-title">Relocate.me resolve o mesmo problema, mas para quem já tem emprego confirmado.</div>
+        <div class="insight-text">
+          Com 131 pontos, é o competidor que mais se aproxima do espaço da Locale em cross-border e 
+          contexto regulatório. A distinção é que ele é emprego-primeiro, imóvel-depois. 
+          Locale inverte isso — e cobre quem não tem emprego formal no destino.
+        </div>
+      </div>
+      <div class="insight-card">
+        <span class="insight-num">03</span>
+        <span class="insight-tag">Risco principal</span>
+        <div class="insight-title">Marca zero em um mercado onde confiança é o ativo mais difícil de construir.</div>
+        <div class="insight-text">
+          Imóvel cross-border envolve dinheiro, burocracia e mudança de vida. 
+          Usuários precisam confiar na plataforma antes de qualquer coisa. 
+          Idealista levou anos para ganhar essa autoridade. O caminho mais curto para Locale 
+          é distribuição institucional: universidades, empregadores e programas Erasmus.
+        </div>
+      </div>
+      <div class="insight-card">
+        <span class="insight-num">04</span>
+        <span class="insight-tag">Dinâmica de mercado</span>
+        <div class="insight-title">HousingAnywhere e Spotahome competem no mesmo espaço e se parecem muito.</div>
+        <div class="insight-text">
+          Os dois diretos têm propostas quase idênticas — mid-term rental para estudantes/profissionais, 
+          filtros padrão, taxas de reserva, sem inteligência de contexto. 
+          São a definição de concorrência simétrica. Locale não compete nesse espaço — 
+          ela existe em uma camada acima, o que é vantagem e desafio ao mesmo tempo.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="brand">Locale</div>
+    <div class="note">Análise de Concorrência · Confidencial · 2026</div>
+  </footer>
+
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('radarChart');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+  const R = 148;
+
+  const axes = [
+    'Qualidade\ndo matching',
+    'Experiência\ncross-border',
+    'Cobertura\ngeográfica',
+    'Presença\ndigital',
+    'Rede de\nparceiros',
+    'Filtro\nregulatório',
+    'Perfil\npersistente',
+  ];
+  const N = axes.length;
+
+  const competitors = [
+    { name: 'Locale',          color: '#1a1a18', fill: 'rgba(26,26,24,0.18)',  scores: [5, 5, 3, 1, 4, 5, 5] },
+    { name: 'HousingAnywhere', color: '#2e5fa3', fill: 'rgba(46,95,163,0.10)', scores: [2, 3, 4, 4, 1, 1, 2] },
+    { name: 'Spotahome',       color: '#c85c2e', fill: 'rgba(200,92,46,0.10)', scores: [2, 3, 3, 3, 1, 1, 2] },
+    { name: 'Idealista',       color: '#4a9b6f', fill: 'rgba(74,155,111,0.10)',scores: [2, 1, 2, 5, 2, 1, 2] },
+    { name: 'Relocate.me',     color: '#7a4ca0', fill: 'rgba(122,76,160,0.10)',scores: [3, 4, 4, 3, 3, 3, 3] },
+  ];
+  const MAX = 5;
+
+  function polarX(angle, r) { return cx + r * Math.cos(angle); }
+  function polarY(angle, r) { return cy + r * Math.sin(angle); }
+  function axisAngle(i) { return (Math.PI * 2 * i / N) - Math.PI / 2; }
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+
+  const levels = [1, 2, 3, 4, 5];
+  levels.forEach(lvl => {
+    ctx.beginPath();
+    for (let i = 0; i < N; i++) {
+      const a = axisAngle(i);
+      const r = (lvl / MAX) * R;
+      i === 0 ? ctx.moveTo(polarX(a, r), polarY(a, r))
+              : ctx.lineTo(polarX(a, r), polarY(a, r));
+    }
+    ctx.closePath();
+    ctx.strokeStyle = lvl === 5 ? 'rgba(15,15,14,0.18)' : 'rgba(15,15,14,0.09)';
+    ctx.lineWidth = lvl === 5 ? 1.2 : 0.8;
+    ctx.stroke();
+    if (lvl < 5) {
+      ctx.fillStyle = 'rgba(15,15,14,0.3)';
+      ctx.font = `10px "DM Mono", monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText(String(lvl), cx + 4, cy - (lvl / MAX) * R - 4);
+    }
+  });
+
+  for (let i = 0; i < N; i++) {
+    const a = axisAngle(i);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(polarX(a, R), polarY(a, R));
+    ctx.strokeStyle = 'rgba(15,15,14,0.15)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+
+  competitors.forEach(comp => {
+    ctx.beginPath();
+    comp.scores.forEach((s, i) => {
+      const a = axisAngle(i);
+      const r = (s / MAX) * R;
+      i === 0 ? ctx.moveTo(polarX(a, r), polarY(a, r))
+              : ctx.lineTo(polarX(a, r), polarY(a, r));
+    });
+    ctx.closePath();
+    ctx.fillStyle   = comp.fill;
+    ctx.fill();
+    ctx.strokeStyle = comp.color;
+    ctx.lineWidth   = comp.name === 'Locale' ? 2.2 : 1.4;
+    ctx.stroke();
+    comp.scores.forEach((s, i) => {
+      const a = axisAngle(i);
+      const r = (s / MAX) * R;
+      ctx.beginPath();
+      ctx.arc(polarX(a, r), polarY(a, r), comp.name === 'Locale' ? 4 : 3, 0, Math.PI * 2);
+      ctx.fillStyle = comp.color;
+      ctx.fill();
+    });
+  });
+
+  const labelOffset = 34;
+  axes.forEach((label, i) => {
+    const a = axisAngle(i);
+    const lx = polarX(a, R + labelOffset);
+    const ly = polarY(a, R + labelOffset);
+    const lines = label.split('\n');
+    ctx.fillStyle = 'rgba(15,15,14,0.75)';
+    ctx.font = `500 11px "DM Sans", sans-serif`;
+    const lineH = 14;
+    const totalH = lines.length * lineH;
+    const xRatio = (lx - cx) / R;
+    if (xRatio > 0.3)       ctx.textAlign = 'left';
+    else if (xRatio < -0.3) ctx.textAlign = 'right';
+    else                    ctx.textAlign = 'center';
+    lines.forEach((ln, li) => {
+      ctx.fillText(ln, lx, ly - totalH / 2 + li * lineH + lineH * 0.7);
+    });
+  });
+
+  const legend = document.getElementById('radarLegend');
+  competitors.forEach(comp => {
+    const item = document.createElement('div');
+    item.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:default;';
+    item.innerHTML = `
+      <span style="display:inline-block;width:28px;height:3px;background:${comp.color};
+        border-radius:2px;flex-shrink:0;
+        ${comp.name==='Locale'?'height:4px;':'opacity:0.7;'}"></span>
+      <span style="font-family:'DM Sans',sans-serif;font-size:13px;color:#3a3935;">
+        ${comp.name}
+        ${comp.name==='Locale' ? '<span style="font-style:italic;font-size:11px;color:#8a8880;"> — planejado</span>' : ''}
+      </span>`;
+    legend.appendChild(item);
+  });
+
+  const note = document.createElement('div');
+  note.style.cssText = 'margin-top:20px;padding-top:16px;border-top:1px solid #d8d4cc;';
+  note.innerHTML = `
+    <p style="font-family:'DM Mono',monospace;font-size:10px;color:#8a8880;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;">Dimensões avaliadas</p>
+    ${axes.map(a => `<p style="font-size:12px;color:#8a8880;line-height:1.7;">${a.replace('\n',' ')}</p>`).join('')}
+  `;
+  legend.appendChild(note);
+})();
+</script>
+</body>
+</html>

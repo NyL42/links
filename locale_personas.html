@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Locale — Personas & Mapas de Empatia</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --accent:        #c84a2e;
+    --accent-dim:    #f0ddd8;
+    --accent-deep:   #8c3220;
+    --bg:            #f7f5f2;
+    --surface:       #ffffff;
+    --surface-2:     #f0ede8;
+    --border:        #e0dbd4;
+    --border-strong: #c8c2b8;
+    --text-1:        #1a1916;
+    --text-2:        #5a5650;
+    --text-3:        #9a948c;
+    --teal-bg:       #e4f3ee;
+    --teal-border:   #9fd8c4;
+    --teal-text:     #0d6b50;
+    --teal-deep:     #084f3a;
+    --red-bg:        #fdecea;
+    --red-border:    #f0b8b0;
+    --red-text:      #8c2a1e;
+    --green-bg:      #eaf4e0;
+    --green-border:  #b8d898;
+    --green-text:    #2e6614;
+    --serif:         'DM Serif Display', Georgia, serif;
+    --sans:          'DM Sans', system-ui, sans-serif;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text-1);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 0 0 80px;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 32px 48px 24px;
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    background: var(--surface);
+  }
+  .wordmark {
+    font-family: var(--serif);
+    font-size: 26px;
+    color: var(--text-1);
+    letter-spacing: -0.02em;
+  }
+  .wordmark span { color: var(--accent); }
+  .header-sub {
+    font-size: 12px;
+    color: var(--text-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* ── Page wrapper ── */
+  .page { max-width: 900px; margin: 0 auto; padding: 0 32px; }
+
+  /* ── Section intro ── */
+  .intro { padding: 40px 0 32px; }
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 10px;
+  }
+  .intro h1 {
+    font-family: var(--serif);
+    font-size: 32px;
+    font-weight: 400;
+    color: var(--text-1);
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+  .intro p {
+    font-size: 14px;
+    color: var(--text-2);
+    max-width: 580px;
+  }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--surface-2);
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    width: fit-content;
+    margin-bottom: 32px;
+  }
+  .tab-btn {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-2);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+  }
+  .tab-btn:hover { color: var(--text-1); background: rgba(255,255,255,0.6); }
+  .tab-btn.active {
+    background: var(--surface);
+    color: var(--text-1);
+    font-weight: 500;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+
+  /* ── Panel ── */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── Persona identity card ── */
+  .persona-header {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .persona-id {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 14px;
+    letter-spacing: 0.02em;
+  }
+  .avatar.red { background: var(--accent-dim); color: var(--accent-deep); }
+  .avatar.teal { background: var(--teal-bg); color: var(--teal-deep); }
+
+  .persona-name {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 400;
+    color: var(--text-1);
+    margin-bottom: 2px;
+  }
+  .persona-role {
+    font-size: 11.5px;
+    color: var(--text-3);
+    margin-bottom: 14px;
+    line-height: 1.4;
+  }
+  .tag-cluster {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 16px;
+  }
+  .tag {
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: var(--surface-2);
+    border: 0.5px solid var(--border);
+    color: var(--text-2);
+  }
+  .demo-table { width: 100%; }
+  .demo-table tr td { font-size: 12px; padding: 3px 0; vertical-align: top; }
+  .demo-table td:first-child { color: var(--text-3); width: 45%; }
+  .demo-table td:last-child { color: var(--text-1); font-weight: 500; }
+
+  /* ── Detail cards grid ── */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .detail-card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+  }
+  .detail-card.full { grid-column: 1 / -1; }
+  .quote-block {
+    border-left: 2px solid var(--accent);
+    padding: 8px 12px;
+    background: var(--accent-dim);
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 14px;
+  }
+  .quote-block p {
+    font-size: 13px;
+    color: var(--accent-deep);
+    font-style: italic;
+    line-height: 1.5;
+  }
+  .detail-card h4 {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 10px;
+  }
+  .detail-card ul { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  .detail-card li {
+    font-size: 13px;
+    color: var(--text-2);
+    padding-left: 14px;
+    position: relative;
+    line-height: 1.45;
+  }
+  .detail-card li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-size: 11px;
+    top: 2px;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    height: 0.5px;
+    background: var(--border);
+    margin: 32px 0;
+  }
+
+  /* ── Empathy map ── */
+  .em-label-section {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 16px;
+  }
+  .em-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .em-card {
+    border-radius: 14px;
+    padding: 16px 18px;
+    border: 0.5px solid var(--border);
+    background: var(--surface);
+  }
+  .em-card.full { grid-column: 1 / -1; }
+  .em-card.feels { background: var(--accent-dim); border-color: #ddb9af; }
+  .em-card.pain  { background: var(--red-bg);   border-color: var(--red-border); }
+  .em-card.gain  { background: var(--green-bg); border-color: var(--green-border); }
+
+  .em-head {
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .em-card         .em-head { color: var(--text-3); }
+  .em-card.feels   .em-head { color: var(--accent-deep); }
+  .em-card.pain    .em-head { color: var(--red-text); }
+  .em-card.gain    .em-head { color: var(--green-text); }
+
+  .em-card ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .em-card li {
+    font-size: 12.5px;
+    padding-left: 12px;
+    position: relative;
+    line-height: 1.4;
+  }
+  .em-card         li { color: var(--text-2); }
+  .em-card.feels   li { color: var(--accent-deep); }
+  .em-card.pain    li { color: var(--red-text); }
+  .em-card.gain    li { color: var(--green-text); }
+  .em-card li::before { content: '·'; position: absolute; left: 0; top: -1px; font-size: 16px; line-height: 1.2; }
+
+  /* ── Footer ── */
+  footer {
+    margin-top: 64px;
+    padding: 24px 48px;
+    border-top: 0.5px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  footer p { font-size: 12px; color: var(--text-3); }
+  .footer-mark { font-family: var(--serif); font-size: 18px; color: var(--text-3); }
+  .footer-mark span { color: var(--accent); }
+
+  @media (max-width: 620px) {
+    header { padding: 20px 20px 16px; }
+    .page { padding: 0 16px; }
+    .persona-header { grid-template-columns: 1fr; }
+    .detail-grid { grid-template-columns: 1fr; }
+    .em-grid { grid-template-columns: 1fr; }
+    .detail-card.full, .em-card.full { grid-column: 1; }
+    footer { padding: 20px; flex-direction: column; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Lo<span>cal</span>e</div>
+  <div class="header-sub">Personas &amp; Mapas de Empatia · 2026</div>
+</header>
+
+<div class="page">
+  <div class="intro">
+    <p class="eyebrow">Pesquisa de usuário</p>
+    <h1>Dois segmentos.<br>Uma plataforma.</h1>
+    <p>Personas construídas a partir do roteiro qualitativo com agentes imobiliários e da pesquisa de validação com compradores e relocadores internacionais.</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('agent')">Agente Imobiliário</button>
+    <button class="tab-btn" onclick="switchTab('buyer')">Comprador / Relocador</button>
+  </div>
+
+  <!-- ═══ AGENT ═══ -->
+  <div class="panel active" id="panel-agent">
+
+    <div class="persona-header">
+      <div class="persona-id">
+        <div class="avatar red">RO</div>
+        <div class="persona-name">Renata Oliveira</div>
+        <div class="persona-role">Corretora autônoma · São Paulo, SP</div>
+        <div class="tag-cluster">
+          <span class="tag">Ambiciosa</span>
+          <span class="tag">Pragmática</span>
+          <span class="tag">Cética com tech</span>
+        </div>
+        <table class="demo-table">
+          <tr><td>Idade</td><td>33 anos</td></tr>
+          <tr><td>Modelo</td><td>Autônoma / PJ</td></tr>
+          <tr><td>Renda</td><td>R$4k–R$12k variável</td></tr>
+          <tr><td>Formação</td><td>Gestão Imobiliária</td></tr>
+          <tr><td>Experiência</td><td>5 anos no mercado</td></tr>
+          <tr><td>Remuneração</td><td>100% comissão</td></tr>
+        </table>
+      </div>
+
+      <div class="detail-grid">
+        <div class="detail-card">
+          <div class="quote-block"><p>"Passo horas num lead que some depois. Preciso saber se a pessoa é séria antes de marcar visita."</p></div>
+          <h4>Comportamentos</h4>
+          <ul>
+            <li>Atende no WhatsApp o dia todo, raramente desconecta</li>
+            <li>Usa CRM básico de forma inconsistente</li>
+            <li>Faz triagem informal por intuição, não por dados</li>
+            <li>Dependente de portais como ZAP e VivaReal para leads</li>
+          </ul>
+        </div>
+        <div class="detail-card">
+          <h4>Necessidades e objetivos</h4>
+          <ul>
+            <li>Receber leads pré-qualificados com contexto — budget, prazo, intenção real</li>
+            <li>Reduzir visitas improdutivas e aumentar taxa de fechamento</li>
+            <li>Dashboard simples para rastrear negociações em andamento</li>
+            <li>Ser percebida como especialista, não apenas intermediária</li>
+          </ul>
+        </div>
+        <div class="detail-card full">
+          <h4>Maiores frustrações</h4>
+          <ul>
+            <li>Clientes que dizem "só estou vendo" e somem após 3 visitas</li>
+            <li>Portais que cobram por leads sem garantia de qualidade</li>
+            <li>Ferramentas que prometem muito e entregam planilha glorificada</li>
+            <li>Mês fechado sem comissão por ter investido no cliente errado</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <p class="em-label-section">Mapa de empatia · Renata</p>
+    <div class="em-grid">
+      <div class="em-card feels full">
+        <span class="em-head">Pensa e sente</span>
+        <ul>
+          <li>Sente pressão constante para fechar — mês sem comissão é mês no vermelho</li>
+          <li>Pensa que a maioria das ferramentas de tech "não entende o mercado real"</li>
+          <li>Tem medo de ser substituída por plataformas que eliminam o corretor</li>
+          <li>Acredita que seu diferencial é o relacionamento, não o anúncio</li>
+        </ul>
+      </div>
+      <div class="em-card">
+        <span class="em-head">Escuta</span>
+        <ul>
+          <li>Clientes dizem "vou pensar" e param de responder</li>
+          <li>Colegas falam em leads comprados que "nunca fecham"</li>
+          <li>Gestores cobram volume de atendimento sem focar em conversão</li>
+          <li>Mercado fala em PropTech, mas maioria dos corretores ignora</li>
+        </ul>
+      </div>
+      <div class="em-card">
+        <span class="em-head">Vê</span>
+        <ul>
+          <li>Anúncios idênticos competindo por atenção nos mesmos portais</li>
+          <li>Clientes fechando com outro corretor após ela investir tempo</li>
+          <li>Jovens colegas adotando ferramentas digitais com mais facilidade</li>
+          <li>Plataformas que tratam o corretor como custo, não parceiro</li>
+        </ul>
+      </div>
+      <div class="em-card full">
+        <span class="em-head">Fala e faz</span>
+        <ul>
+          <li>Envia mensagens de follow-up no WhatsApp de forma manual, sem padrão</li>
+          <li>Agenda visitas sem confirmar intenção de compra ou capacidade de crédito</li>
+          <li>Promete exclusividade de atendimento para manter lead aquecido</li>
+          <li>Compartilha vídeos e fotos de imóveis diretamente no WhatsApp</li>
+        </ul>
+      </div>
+      <div class="em-card pain">
+        <span class="em-head">Dor</span>
+        <ul>
+          <li>Tempo perdido em visitas sem intenção real de compra</li>
+          <li>Sem visibilidade de onde o lead está na jornada de decisão</li>
+          <li>CRM pago que ela mesma não preenche direito</li>
+          <li>Leads chegam sem contexto — ela precisa descobrir tudo do zero</li>
+        </ul>
+      </div>
+      <div class="em-card gain">
+        <span class="em-head">Ganhos</span>
+        <ul>
+          <li>Leads já perfilados com estilo de vida, budget e prazo reais</li>
+          <li>Briefing do cliente chegando antes da primeira ligação</li>
+          <li>Dashboard que mostra quem está ativo, inativo ou pronto para fechar</li>
+          <li>Ser conectada ao cliente certo — não ao próximo da fila</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ BUYER ═══ -->
+  <div class="panel" id="panel-buyer">
+
+    <div class="persona-header">
+      <div class="persona-id">
+        <div class="avatar teal">SA</div>
+        <div class="persona-name">Sofia Andrade</div>
+        <div class="persona-role">Estudante Erasmus · Brasil → Países Baixos</div>
+        <div class="tag-cluster">
+          <span class="tag">Curiosa</span>
+          <span class="tag">Ansiosa com o novo</span>
+          <span class="tag">Pesquisadora</span>
+        </div>
+        <table class="demo-table">
+          <tr><td>Idade</td><td>24 anos</td></tr>
+          <tr><td>Situação</td><td>Solteira, sem filhos</td></tr>
+          <tr><td>Renda</td><td>Bolsa ~€700/mês</td></tr>
+          <tr><td>Formação</td><td>Arquitetura (graduação)</td></tr>
+          <tr><td>Moradia atual</td><td>República universitária</td></tr>
+          <tr><td>Idiomas</td><td>PT, EN, espanhol básico</td></tr>
+        </table>
+      </div>
+
+      <div class="detail-grid">
+        <div class="detail-card">
+          <div class="quote-block"><p>"Cada site está em outro idioma, com outra lógica. Quero entender o bairro antes de escolher o apartamento."</p></div>
+          <h4>Comportamentos</h4>
+          <ul>
+            <li>Pesquisa em Reddit, grupos de Facebook e fóruns de expats</li>
+            <li>Cria planilhas comparando bairros, preços e transportes</li>
+            <li>Pede indicações a estudantes que passaram pela mesma situação</li>
+            <li>Procrastina a decisão por excesso de informação fragmentada</li>
+          </ul>
+        </div>
+        <div class="detail-card">
+          <h4>Necessidades e objetivos</h4>
+          <ul>
+            <li>Encontrar um bairro compatível com seu estilo de vida antes de filtrar imóveis</li>
+            <li>Entender o que seu passaporte permite, sem surpresas de visto</li>
+            <li>Ter perfil persistente — não explicar tudo de novo a cada corretor</li>
+            <li>Falar com profissionais que já conhecem sua situação</li>
+          </ul>
+        </div>
+        <div class="detail-card full">
+          <h4>Maiores frustrações</h4>
+          <ul>
+            <li>Cada portal nacional funciona diferente — nenhum cobre mais de um país</li>
+            <li>Sem contexto local, qualquer bairro parece igual numa foto</li>
+            <li>Corretores que não respondem ou não entendem a situação de intercambista</li>
+            <li>Medo de assinar contrato a distância sem conhecer o lugar de fato</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <p class="em-label-section">Mapa de empatia · Sofia</p>
+    <div class="em-grid">
+      <div class="em-card feels full">
+        <span class="em-head">Pensa e sente</span>
+        <ul>
+          <li>Animada com a experiência, mas ansiosa com o risco de errar na escolha</li>
+          <li>Sente que o mercado não foi feito para quem vem de fora</li>
+          <li>Tem medo de cair num golpe assinando algo sem conhecer o lugar</li>
+          <li>Acredita que o bairro vai definir a experiência inteira do intercâmbio</li>
+        </ul>
+      </div>
+      <div class="em-card">
+        <span class="em-head">Escuta</span>
+        <ul>
+          <li>Amigos que foram: "arrumei moradia pela universidade no início"</li>
+          <li>Reddit: "cuidado com golpes de aluguel para estrangeiros"</li>
+          <li>Escritório internacional: "comece a buscar pelo menos 4 meses antes"</li>
+          <li>Instagram: relatos de intercambistas bem e mal sucedidos</li>
+        </ul>
+      </div>
+      <div class="em-card">
+        <span class="em-head">Vê</span>
+        <ul>
+          <li>Portais em holandês que ela não consegue ler fluentemente</li>
+          <li>Fotos de apartamentos sem contexto de bairro ou mobilidade</li>
+          <li>Colegas que chegaram sem moradia e ficaram em hostels</li>
+          <li>Anúncios que pedem renda comprovada local — ela não tem</li>
+        </ul>
+      </div>
+      <div class="em-card full">
+        <span class="em-head">Fala e faz</span>
+        <ul>
+          <li>Entra em grupos de WhatsApp de brasileiros em Utrecht, Amsterdã etc.</li>
+          <li>Salva planilhas com comparativos de bairro, deslocamento e custo</li>
+          <li>Compartilha links com os pais e pede opinião, mas a decisão é dela</li>
+          <li>Tenta contato com corretores — raramente obtém resposta antes de confirmar matrícula</li>
+        </ul>
+      </div>
+      <div class="em-card pain">
+        <span class="em-head">Dor</span>
+        <ul>
+          <li>Nenhum portal cobre mais de um país — recomeça do zero em cada cidade</li>
+          <li>Sem histórico local de renda, corretores a ignoram ou pedem fiador europeu</li>
+          <li>Sem forma de avaliar qualidade de vida de um bairro remotamente</li>
+          <li>Cada corretor exige que ela reexplique toda a sua situação</li>
+        </ul>
+      </div>
+      <div class="em-card gain">
+        <span class="em-head">Ganhos</span>
+        <ul>
+          <li>Um perfil único que persiste entre cidades, países e plataformas</li>
+          <li>Bairros ranqueados por compatibilidade com seu estilo de vida</li>
+          <li>Filtro que mostra o que seu passaporte acessa — sem surpresas de visto</li>
+          <li>Profissionais que já recebem o briefing dela antes da primeira conversa</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>Apresentação do conceito · Confidencial · 2026</p>
+  <div class="footer-mark">Lo<span>cal</span>e</div>
+</footer>
+
+<script>
+function switchTab(id) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', (i === 0 && id === 'agent') || (i === 1 && id === 'buyer'));
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+}
+</script>
+</body>
+</html>
